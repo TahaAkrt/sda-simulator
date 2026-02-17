@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDA — Uzay Alan Farkındalığı Simülatörü</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@200;400;600;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #020508;
+    --bg2: #040d16;
+    --panel: rgba(4, 18, 32, 0.85);
+    --border: rgba(0, 200, 255, 0.18);
+    --cyan: #00c8ff;
+    --cyan2: #00ffe7;
+    --orange: #ff6b35;
+    --yellow: #ffe066;
+    --green: #39ff7a;
+    --red: #ff3a5c;
+    --text: #c8e8f8;
+    --dim: #4a7a9b;
+    --glow: 0 0 24px rgba(0,200,255,0.35);
+    --glow2: 0 0 32px rgba(0,255,231,0.25);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── STARFIELD ── */
+  #starfield {
+    position: fixed; inset: 0; z-index: 0;
+    overflow: hidden; pointer-events: none;
+  }
+  .star {
+    position: absolute; border-radius: 50%;
+    background: white; animation: twinkle var(--dur,3s) infinite alternate;
+  }
+  @keyframes twinkle { from{opacity:.1} to{opacity:.9} }
+
+  /* ── GRID OVERLAY ── */
+  body::before {
+    content:''; position:fixed; inset:0; z-index:1; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(0,200,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* ── LAYOUT ── */
+  #app { position:relative; z-index:2; }
+
+  /* ── HEADER ── */
+  header {
+    padding: 32px 48px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 24px;
+    background: linear-gradient(180deg, rgba(0,200,255,.06) 0%, transparent 100%);
+  }
+  .logo-icon {
+    width:52px; height:52px; flex-shrink:0;
+    animation: spin 18s linear infinite;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  header h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.1rem,2.5vw,1.9rem);
+    font-weight: 900;
+    letter-spacing:.15em;
+    background: linear-gradient(90deg, var(--cyan), var(--cyan2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 0 12px var(--cyan));
+  }
+  header p {
+    font-family:'Share Tech Mono'; font-size:.78rem;
+    color:var(--dim); letter-spacing:.1em; margin-top:4px;
+  }
+  .badge {
+    margin-left:auto; font-family:'Orbitron'; font-size:.65rem;
+    padding:6px 14px; border:1px solid var(--cyan);
+    color:var(--cyan); border-radius:4px;
+    box-shadow: var(--glow); letter-spacing:.15em;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100%{box-shadow:0 0 10px rgba(0,200,255,.3)}
+    50%{box-shadow:0 0 30px rgba(0,200,255,.7)}
+  }
+
+  /* ── NAV TABS ── */
+  nav {
+    display:flex; gap:0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    overflow-x: auto;
+  }
+  nav button {
+    font-family:'Orbitron'; font-size:.7rem; letter-spacing:.12em;
+    padding:14px 28px; background:none; border:none; border-bottom:2px solid transparent;
+    color:var(--dim); cursor:pointer; transition:all .25s; white-space:nowrap;
+  }
+  nav button:hover { color:var(--cyan); }
+  nav button.active {
+    color:var(--cyan); border-bottom-color:var(--cyan);
+    background: rgba(0,200,255,.06);
+    text-shadow: 0 0 12px var(--cyan);
+  }
+
+  /* ── SECTIONS ── */
+  .section { display:none; padding:32px 24px 48px; max-width:1400px; margin:0 auto; }
+  .section.active { display:block; animation: fadeIn .35s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius:8px; padding:24px;
+    backdrop-filter: blur(8px);
+  }
+  .panel-title {
+    font-family:'Orbitron'; font-size:.78rem; letter-spacing:.18em;
+    color:var(--cyan); margin-bottom:20px;
+    padding-bottom:10px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:10px;
+  }
+  .panel-title::before {
+    content:''; display:block; width:8px; height:8px;
+    border:2px solid var(--cyan); border-radius:50%;
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  /* ── GRID LAYOUTS ── */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+  .grid-3-1 { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
+  @media(max-width:900px) {
+    .grid-2,.grid-3,.grid-3-1 { grid-template-columns:1fr; }
+  }
+
+  /* ── FORM INPUTS ── */
+  .form-group { margin-bottom:16px; }
+  label {
+    display:block; font-family:'Share Tech Mono'; font-size:.72rem;
+    color:var(--dim); margin-bottom:6px; letter-spacing:.08em;
+  }
+  input[type=number], input[type=range], select {
+    width:100%; background: rgba(0,200,255,.05);
+    border:1px solid var(--border); border-radius:4px;
+    padding:8px 12px; color:var(--text); font-family:'Share Tech Mono'; font-size:.85rem;
+    outline:none; transition:border-color .2s;
+  }
+  input[type=number]:focus, select:focus { border-color:var(--cyan); box-shadow:var(--glow); }
+  input[type=range] {
+    padding:4px 0; appearance:none; height:4px;
+    background:rgba(0,200,255,.15); cursor:pointer; border:none; border-radius:2px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--cyan); box-shadow:0 0 8px var(--cyan);
+  }
+  .range-val {
+    font-family:'Share Tech Mono'; font-size:.75rem; color:var(--cyan);
+    text-align:right; margin-top:4px;
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    font-family:'Orbitron'; font-size:.72rem; letter-spacing:.14em;
+    padding:12px 28px; border:1px solid var(--cyan); border-radius:4px;
+    background:rgba(0,200,255,.08); color:var(--cyan); cursor:pointer;
+    transition:all .2s; width:100%;
+  }
+  .btn:hover {
+    background:rgba(0,200,255,.2); box-shadow:var(--glow);
+    transform:translateY(-2px);
+  }
+  .btn-orange {
+    border-color:var(--orange); color:var(--orange); background:rgba(255,107,53,.08);
+  }
+  .btn-orange:hover { background:rgba(255,107,53,.2); box-shadow:0 0 24px rgba(255,107,53,.4); }
+  .btn-green {
+    border-color:var(--green); color:var(--green); background:rgba(57,255,122,.08);
+  }
+  .btn-green:hover { background:rgba(57,255,122,.2); box-shadow:0 0 24px rgba(57,255,122,.4); }
+
+  /* ── DATA DISPLAY ── */
+  .data-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 0; border-bottom:1px solid rgba(0,200,255,.06);
+    font-family:'Share Tech Mono'; font-size:.82rem;
+  }
+  .data-row:last-child { border-bottom:none; }
+  .data-key { color:var(--dim); }
+  .data-val { color:var(--cyan2); font-weight:600; }
+  .data-val.error { color:var(--orange); }
+  .data-val.good { color:var(--green); }
+
+  /* ── CANVAS ── */
+  canvas {
+    width:100%; border-radius:6px; display:block;
+    background: rgba(0,8,16,.6);
+    border:1px solid var(--border);
+  }
+
+  /* ── TABLE ── */
+  .data-table {
+    width:100%; border-collapse:collapse; font-family:'Share Tech Mono'; font-size:.78rem;
+  }
+  .data-table th {
+    color:var(--cyan); padding:10px 12px; text-align:left;
+    border-bottom:1px solid var(--border); font-family:'Orbitron'; font-size:.65rem;
+    letter-spacing:.1em;
+  }
+  .data-table td {
+    padding:9px 12px; border-bottom:1px solid rgba(0,200,255,.05);
+    color:var(--text);
+  }
+  .data-table tr:hover td { background:rgba(0,200,255,.04); }
+
+  /* ── STATUS ── */
+  .status-dot {
+    width:8px; height:8px; border-radius:50%; display:inline-block;
+    margin-right:8px;
+    animation: blink 1.2s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  .dot-green { background:var(--green); box-shadow:0 0 8px var(--green); }
+  .dot-orange { background:var(--orange); box-shadow:0 0 8px var(--orange); animation:none; }
+  .dot-red { background:var(--red); box-shadow:0 0 8px var(--red); }
+
+  /* ── METRICS CARD ── */
+  .metric-card {
+    background:rgba(0,200,255,.04); border:1px solid var(--border);
+    border-radius:6px; padding:18px; text-align:center;
+  }
+  .metric-big {
+    font-family:'Orbitron'; font-size:1.8rem; font-weight:700;
+    color:var(--cyan2); margin:8px 0 4px;
+    text-shadow: 0 0 20px var(--cyan2);
+  }
+  .metric-unit { font-family:'Share Tech Mono'; font-size:.72rem; color:var(--dim); }
+  .metric-label { font-family:'Orbitron'; font-size:.6rem; letter-spacing:.15em; color:var(--dim); }
+
+  /* ── PROGRESS ── */
+  .progress-bar {
+    height:6px; background:rgba(0,200,255,.12); border-radius:3px; overflow:hidden;
+    margin-top:6px;
+  }
+  .progress-fill {
+    height:100%; border-radius:3px; transition:width .4s ease;
+    background:linear-gradient(90deg, var(--cyan), var(--cyan2));
+    box-shadow: 0 0 10px var(--cyan);
+  }
+
+  /* ── LOG ── */
+  #log {
+    font-family:'Share Tech Mono'; font-size:.73rem; line-height:1.9;
+    color:#4a7a9b; height:180px; overflow-y:auto;
+    background:rgba(0,0,0,.4); border-radius:4px; padding:12px;
+    border:1px solid var(--border);
+  }
+  #log .log-ok { color:var(--green); }
+  #log .log-warn { color:var(--yellow); }
+  #log .log-err { color:var(--red); }
+  #log .log-info { color:var(--cyan); }
+
+  /* ── SECTION HEADINGS ── */
+  .sec-title {
+    font-family:'Orbitron'; font-size:1rem; font-weight:700;
+    color:var(--cyan); letter-spacing:.18em;
+    margin-bottom:24px; padding-bottom:12px;
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:12px;
+  }
+  .sec-num {
+    font-size:.65rem; background:var(--cyan); color:#000;
+    border-radius:3px; padding:2px 8px; letter-spacing:0;
+  }
+
+  /* ── ORBIT VIZ ── */
+  #orbitCanvas { height:420px; }
+  #trackerCanvas { height:280px; }
+  #errorCanvas { height:240px; }
+
+  /* ── ABOUT CARD ── */
+  .about-card {
+    background:linear-gradient(135deg, rgba(0,200,255,.06), rgba(0,255,231,.03));
+    border:1px solid var(--border); border-radius:8px; padding:28px;
+  }
+  .about-card h3 { font-family:'Orbitron'; color:var(--cyan); margin-bottom:12px; font-size:.9rem; }
+  .about-card p { font-size:.88rem; line-height:1.75; color:var(--text); opacity:.85; margin-bottom:12px; }
+  .eq-box {
+    background:rgba(0,0,0,.5); border-left:3px solid var(--cyan);
+    padding:14px 20px; border-radius:0 4px 4px 0; margin:16px 0;
+    font-family:'Share Tech Mono'; font-size:.82rem; color:var(--cyan2); line-height:2.2;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:rgba(0,200,255,.04); }
+  ::-webkit-scrollbar-thumb { background:rgba(0,200,255,.25); border-radius:3px; }
+
+  .sep { width:100%; height:1px; background:var(--border); margin:20px 0; }
+
+  .chip {
+    display:inline-block; font-family:'Share Tech Mono'; font-size:.68rem;
+    padding:3px 10px; border-radius:12px; margin:3px;
+    border:1px solid; letter-spacing:.06em;
+  }
+  .chip-cyan { border-color:var(--cyan); color:var(--cyan); }
+  .chip-orange { border-color:var(--orange); color:var(--orange); }
+  .chip-green { border-color:var(--green); color:var(--green); }
+
+  /* ── AUTHOR STRIP ── */
+  #author-strip {
+    position:fixed; bottom:0; left:0; right:0; z-index:100;
+    background: linear-gradient(90deg, rgba(2,5,8,.97) 0%, rgba(4,18,32,.97) 50%, rgba(2,5,8,.97) 100%);
+    border-top:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 28px; gap:20px;
+    backdrop-filter:blur(12px);
+  }
+  .author-left { display:flex; align-items:center; gap:14px; }
+  .author-avatar {
+    width:34px; height:34px; border-radius:50%;
+    background: linear-gradient(135deg, #00c8ff22, #00ffe722);
+    border:1px solid var(--cyan); display:flex; align-items:center; justify-content:center;
+    font-family:'Orbitron'; font-size:.75rem; color:var(--cyan); font-weight:700;
+    box-shadow: 0 0 12px rgba(0,200,255,.3);
+    flex-shrink:0;
+  }
+  .author-info { line-height:1.4; }
+  .author-name {
+    font-family:'Orbitron'; font-size:.75rem; font-weight:700;
+    color:var(--cyan2); letter-spacing:.12em;
+  }
+  .author-role {
+    font-family:'Share Tech Mono'; font-size:.65rem; color:var(--dim);
+  }
+  .author-center {
+    font-family:'Share Tech Mono'; font-size:.68rem; color:var(--dim);
+    letter-spacing:.08em; text-align:center;
+  }
+  .author-center span { color:var(--cyan); }
+
+  /* QR Modal */
+  #qr-btn {
+    font-family:'Orbitron'; font-size:.65rem; letter-spacing:.12em;
+    padding:7px 16px; border:1px solid var(--cyan); border-radius:4px;
+    background:rgba(0,200,255,.08); color:var(--cyan); cursor:pointer;
+    transition:all .2s; flex-shrink:0;
+    display:flex; align-items:center; gap:8px;
+  }
+  #qr-btn:hover { background:rgba(0,200,255,.2); box-shadow:var(--glow); }
+  #qr-btn svg { width:16px; height:16px; }
+
+  #qr-modal {
+    display:none; position:fixed; inset:0; z-index:200;
+    background:rgba(0,0,0,.7); backdrop-filter:blur(6px);
+    align-items:center; justify-content:center;
+  }
+  #qr-modal.open { display:flex; }
+  .qr-card {
+    background: var(--bg2); border:1px solid var(--border);
+    border-radius:12px; padding:32px; text-align:center;
+    animation: fadeIn .25s ease;
+    max-width:340px; width:90%;
+    box-shadow: 0 0 60px rgba(0,200,255,.15);
+  }
+  .qr-card h3 { font-family:'Orbitron'; color:var(--cyan); margin-bottom:6px; font-size:.85rem; letter-spacing:.15em; }
+  .qr-card p { font-family:'Share Tech Mono'; font-size:.72rem; color:var(--dim); margin-bottom:20px; }
+  #qr-canvas-wrap {
+    background:#fff; border-radius:8px; padding:14px; display:inline-block;
+    box-shadow: 0 0 24px rgba(0,200,255,.25);
+  }
+  #qrCanvas { display:block; }
+  .qr-url {
+    margin-top:16px; font-family:'Share Tech Mono'; font-size:.68rem;
+    color:var(--cyan2); word-break:break-all;
+    background:rgba(0,200,255,.06); padding:8px 12px; border-radius:4px;
+    border:1px solid var(--border);
+  }
+  .qr-close {
+    margin-top:16px; font-family:'Orbitron'; font-size:.65rem;
+    padding:8px 24px; border:1px solid var(--dim); border-radius:4px;
+    background:none; color:var(--dim); cursor:pointer;
+    letter-spacing:.1em; transition:all .2s;
+  }
+  .qr-close:hover { border-color:var(--red); color:var(--red); }
+
+  body { padding-bottom:58px; }
+
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+<div id="starfield"></div>
+
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <svg class="logo-icon" viewBox="0 0 52 52" fill="none">
+    <circle cx="26" cy="26" r="23" stroke="#00c8ff" stroke-width="1.5" opacity=".4"/>
+    <ellipse cx="26" cy="26" rx="23" ry="9" stroke="#00ffe7" stroke-width="1" stroke-dasharray="4 3"/>
+    <circle cx="26" cy="26" r="4" fill="#00c8ff" opacity=".9"/>
+    <circle cx="43" cy="18" r="3" fill="#ff6b35"/>
+    <circle cx="12" cy="36" r="3" fill="#39ff7a"/>
+    <line x1="26" y1="26" x2="43" y2="18" stroke="#00c8ff" stroke-width="1" stroke-dasharray="3 2" opacity=".5"/>
+    <line x1="26" y1="26" x2="12" y2="36" stroke="#00c8ff" stroke-width="1" stroke-dasharray="3 2" opacity=".5"/>
+  </svg>
+  <div>
+    <h1>UZAY ALAN FARKINDALIK SİMÜLATÖRÜ</h1>
+    <p>STAR TRACKER · GNSS · PARALLAX · RSO YÖRÜNGE BELİRLEME · IEEE TAES 2025</p>
+  </div>
+  <div class="badge">CANLI SİMÜLASYON</div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <button class="active" onclick="showTab('sim')">⟁ SİMÜLASYON</button>
+  <button onclick="showTab('parallax')">◈ PARALLAKS HESAP</button>
+  <button onclick="showTab('orbit')">⊙ YÖRÜNGE ANALİZİ</button>
+  <button onclick="showTab('sensitivity')">⚡ HASSASLIK ANALİZİ</button>
+  <button onclick="showTab('about')">∑ MAKALE</button>
+</nav>
+
+<!-- ═══════════ TAB 1 — SİMÜLASYON ═══════════ -->
+<div id="tab-sim" class="section active">
+  <div class="sec-title"><span class="sec-num">01</span> UYDU FORMASYONU & RSO TAKİP SİMÜLASYONU</div>
+
+  <div class="grid-3-1" style="margin-bottom:20px;">
+
+    <!-- Main orbit canvas -->
+    <div class="panel">
+      <div class="panel-title">3D YÖRÜNGE GÖRSELLEŞTİRMESİ — ECI ÇERÇEVE</div>
+      <canvas id="orbitCanvas"></canvas>
+      <div style="margin-top:12px; display:flex; gap:16px; flex-wrap:wrap;">
+        <span><span class="status-dot dot-green"></span><span style="font-family:'Share Tech Mono';font-size:.72rem;color:var(--green)">ST-1 Uydu</span></span>
+        <span><span class="status-dot dot-orange" style="animation:none"></span><span style="font-family:'Share Tech Mono';font-size:.72rem;color:var(--orange)">ST-2 Uydu</span></span>
+        <span><span class="status-dot" style="background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:none"></span><span style="font-family:'Share Tech Mono';font-size:.72rem;color:var(--cyan)">RSO Hedef</span></span>
+        <span><span class="status-dot" style="background:var(--yellow);box-shadow:0 0 8px var(--yellow);animation:none"></span><span style="font-family:'Share Tech Mono';font-size:.72rem;color:var(--yellow)">Tahmin Konum</span></span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel">
+        <div class="panel-title">PARAMETRE KONTROLÜ</div>
+        <div class="form-group">
+          <label>FORMASYON TABAN UZAKLIĞI (km)</label>
+          <input type="range" id="baseline" min="5" max="50" value="20" oninput="updateSim()">
+          <div class="range-val" id="baseline-val">20 km</div>
+        </div>
+        <div class="form-group">
+          <label>RSO YÜKSEK İRTİFASI (km)</label>
+          <input type="range" id="rsoAlt" min="600" max="1200" value="700" oninput="updateSim()">
+          <div class="range-val" id="rsoAlt-val">700 km</div>
+        </div>
+        <div class="form-group">
+          <label>CENTROID HATASI (piksel)</label>
+          <input type="range" id="centroidErr" min="0.001" max="0.2" step="0.001" value="0.015" oninput="updateSim()">
+          <div class="range-val" id="centroidErr-val">0.015 px</div>
+        </div>
+        <div class="form-group">
+          <label>SİMÜLASYON HIZI</label>
+          <input type="range" id="simSpeed" min="1" max="10" value="3" oninput="document.getElementById('simSpeed-val').textContent=this.value+'x'">
+          <div class="range-val" id="simSpeed-val">3x</div>
+        </div>
+        <button class="btn btn-green" onclick="startSim()" id="simBtn">▶ SİMÜLASYONU BAŞLAT</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">GERÇEK ZAMANLI METRIKLER</div>
+        <div class="data-row"><span class="data-key">Konum Hatası</span><span class="data-val" id="posErr">— m</span></div>
+        <div class="data-row"><span class="data-key">Eş Zamanlı Obs.</span><span class="data-val" id="simObs">0 / 160</span></div>
+        <div class="data-row"><span class="data-key">FOV Örtüşme</span><span class="data-val" id="fovOverlap">—</span></div>
+        <div class="data-row"><span class="data-key">α₁ (mesafe)</span><span class="data-val" id="alpha1">— km</span></div>
+        <div class="data-row"><span class="data-key">α₂ (mesafe)</span><span class="data-val" id="alpha2">— km</span></div>
+        <div class="data-row"><span class="data-key">Paralaks Açısı</span><span class="data-val" id="parallaxAngle">—</span></div>
+        <div class="data-row"><span class="data-key">Sim Zamanı</span><span class="data-val" id="simTime">0.0 s</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Star tracker views + log -->
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">STAR TRACKER GÖRÜNTÜLERİ — AÇISAL KOORDİNATLAR</div>
+      <canvas id="trackerCanvas"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">SİSTEM GÜNLÜĞÜ</div>
+      <div id="log"><span class="log-info">[ SDA ] Sistem hazır. Simülasyonu başlatmak için butona basın.</span><br></div>
+      <div class="sep"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px;">
+        <div class="metric-card">
+          <div class="metric-label">GNSS PPP</div>
+          <div class="metric-big" style="font-size:1.1rem;">±100</div>
+          <div class="metric-unit">mm abs.</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">GNSS RTK</div>
+          <div class="metric-big" style="font-size:1.1rem;">±10</div>
+          <div class="metric-unit">mm rel.</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">FOV</div>
+          <div class="metric-big" style="font-size:1.1rem;">20°</div>
+          <div class="metric-unit">× 20°</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB 2 — PARALLAKS ═══════════ -->
+<div id="tab-parallax" class="section">
+  <div class="sec-title"><span class="sec-num">02</span> PARALLAKS TABANLI RSO KONUM HESAPLAMA</div>
+
+  <div class="grid-2" style="margin-bottom:20px;">
+    <div class="panel">
+      <div class="panel-title">UYDU POZİSYONLARI (ECI — km)</div>
+      <div class="form-group">
+        <label>ST-1 X Konumu (km)</label>
+        <input type="number" id="p1x" value="6978" step="1">
+      </div>
+      <div class="form-group">
+        <label>ST-1 Y (B₁) (km)</label>
+        <input type="number" id="p1y" value="9" step="0.5">
+      </div>
+      <div class="form-group">
+        <label>ST-1 Z (B₃) (km)</label>
+        <input type="number" id="p1z" value="0.5" step="0.1">
+      </div>
+      <div class="sep"></div>
+      <div class="form-group">
+        <label>ST-2 X Konumu (km)</label>
+        <input type="number" id="p2x" value="6978" step="1">
+      </div>
+      <div class="form-group">
+        <label>ST-2 Y (B₂) (km)</label>
+        <input type="number" id="p2y" value="-11" step="0.5">
+      </div>
+      <div class="form-group">
+        <label>ST-2 Z (-B₃) (km)</label>
+        <input type="number" id="p2z" value="-0.5" step="0.1">
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">RSO HEDEF & BİRİM VEKTÖRLER</div>
+      <div class="form-group">
+        <label>Hedef X (km) — RSO</label>
+        <input type="number" id="ptx" value="7078" step="1">
+      </div>
+      <div class="form-group">
+        <label>Hedef Y (km)</label>
+        <input type="number" id="pty" value="0" step="1">
+      </div>
+      <div class="form-group">
+        <label>Hedef Z (km)</label>
+        <input type="number" id="ptz" value="0" step="1">
+      </div>
+      <div class="sep"></div>
+      <div class="form-group">
+        <label>Centroid Hatası σ (piksel)</label>
+        <input type="number" id="centErrCalc" value="0.015" step="0.001" min="0.001" max="0.5">
+      </div>
+      <div class="form-group">
+        <label>Monte Carlo Örnekleme Sayısı</label>
+        <input type="number" id="mcSamples" value="200" step="50" min="50" max="2000">
+      </div>
+      <button class="btn" onclick="calcParallax()" style="margin-bottom:10px;">◈ PARALLAKS HESAPLA</button>
+      <button class="btn btn-orange" onclick="runMonteCarlo()">⟳ MONTE CARLO ANALİZİ</button>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">HESAPLAMA SONUÇLARI — Eq.(9)-(11)</div>
+      <div id="parallaxResults">
+        <div style="font-family:'Share Tech Mono';font-size:.78rem;color:var(--dim);text-align:center;padding:40px 0;">
+          Parametreleri girin ve hesapla butonuna basın.
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">MONTE CARLO HATA DAĞILIMI</div>
+      <canvas id="errorCanvas"></canvas>
+      <div id="mcStats" style="margin-top:12px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB 3 — YÖRÜNGE ═══════════ -->
+<div id="tab-orbit" class="section">
+  <div class="sec-title"><span class="sec-num">03</span> RSO YÖRÜNGE BELİRLEME — ALGORİTMA 1</div>
+
+  <div class="grid-3-1" style="margin-bottom:20px;">
+    <div class="panel">
+      <div class="panel-title">YÖRÜNGE BELİRLEME SONUÇLARI (GIBBS YÖNTEMİ)</div>
+      <table class="data-table" id="orbitTable">
+        <thead>
+          <tr>
+            <th>PARAMETRE</th>
+            <th>SEMBOL</th>
+            <th>GERÇEK DEĞER</th>
+            <th>TAHMİN EDİLEN</th>
+            <th>HATA</th>
+          </tr>
+        </thead>
+        <tbody id="orbitTableBody"></tbody>
+      </table>
+      <div class="sep"></div>
+      <button class="btn btn-green" onclick="runOrbitDet()" style="width:auto;display:inline-block;margin-right:10px;">⟳ YENİ SİMÜLASYON</button>
+      <span id="orbitStatus" style="font-family:'Share Tech Mono';font-size:.75rem;color:var(--dim);"></span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel">
+        <div class="panel-title">MAKALE TABLo II</div>
+        <table class="data-table">
+          <thead><tr><th></th><th>GERÇEK</th><th>HATA</th></tr></thead>
+          <tbody>
+            <tr><td>a (km)</td><td style="color:var(--cyan2)">7085.1</td><td style="color:var(--orange)">0.69 m</td></tr>
+            <tr><td>e</td><td style="color:var(--cyan2)">0.00106</td><td style="color:var(--orange)">3.8×10⁻⁷</td></tr>
+            <tr><td>i (°)</td><td style="color:var(--cyan2)">97.816°</td><td style="color:var(--orange)">2.6×10⁻⁶</td></tr>
+            <tr><td>Ω (°)</td><td style="color:var(--cyan2)">0.573°</td><td style="color:var(--orange)">2.1×10⁻⁵</td></tr>
+            <tr><td>ω (°)</td><td style="color:var(--cyan2)">90°</td><td style="color:var(--orange)">0.1348°</td></tr>
+            <tr><td>λ(t₀) (°)</td><td style="color:var(--cyan2)">77.481°</td><td style="color:var(--green)">4.6×10⁻⁶</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="panel-title">ALGORİTMA 1 ADIMLARI</div>
+        <div id="algoSteps">
+          <div class="data-row"><span style="font-family:'Share Tech Mono';font-size:.75rem;color:var(--dim);">1. RSO pozisyon çözümü (centroid)</span><span class="chip chip-green">✓</span></div>
+          <div class="data-row"><span style="font-family:'Share Tech Mono';font-size:.75rem;color:var(--dim);">2. Polinom yörünge fiti (6. derece)</span><span class="chip chip-green">✓</span></div>
+          <div class="data-row"><span style="font-family:'Share Tech Mono';font-size:.75rem;color:var(--dim);">3. Gibbs metodu için 3 nokta</span><span class="chip chip-green">✓</span></div>
+          <div class="data-row"><span style="font-family:'Share Tech Mono';font-size:.75rem;color:var(--dim);">4. Gibbs yörünge belirleme</span><span class="chip chip-green">✓</span></div>
+          <div class="data-row"><span style="font-family:'Share Tech Mono';font-size:.75rem;color:var(--dim);">5. Ortalama orbital elemanlar</span><span class="chip chip-green">✓</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">GÖZLEM ARKI — 160 EŞ ZAMANLI GÖZLEM (160 s)</div>
+    <canvas id="obsArcCanvas" style="height:200px;"></canvas>
+  </div>
+</div>
+
+<!-- ═══════════ TAB 4 — HASSASLIK ═══════════ -->
+<div id="tab-sensitivity" class="section">
+  <div class="sec-title"><span class="sec-num">04</span> HASSASLIK ANALİZİ — HATA KAYNAKLARI</div>
+
+  <div class="grid-3" style="margin-bottom:20px;">
+    <div class="metric-card">
+      <div class="metric-label">CENTROID HATASI (0.1 px)</div>
+      <div class="metric-big">~31</div>
+      <div class="metric-unit">metre konum hatası</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:95%"></div></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">GNSS PPP ABS</div>
+      <div class="metric-big">~150</div>
+      <div class="metric-unit">mm pozisyon</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:15%;background:linear-gradient(90deg,var(--green),var(--cyan2))"></div></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">CENTROID (0.015 px)</div>
+      <div class="metric-big">~3.0</div>
+      <div class="metric-unit">metre konum hatası</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:30%;background:linear-gradient(90deg,var(--yellow),var(--orange))"></div></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">TABAN UZAKLIĞI vs KONUM HATASI</div>
+      <canvas id="baselineCanvas" style="height:260px;"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">CENTROID HATASI vs RSO KONUM HATASI</div>
+      <canvas id="centroidCanvas" style="height:260px;"></canvas>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">POLİNOM FİT DOĞRULUK İYİLEŞTİRMESİ</div>
+      <div class="about-card" style="padding:16px;">
+        <p>160 eş zamanlı gözlemle, sıfır-ortalama bağımsız hatalar varsayımıyla:</p>
+        <div class="eq-box">
+          İyileştirme ≈ √160 > 12×
+          <br>
+          σ_fit = σ_single / √N_obs
+          <br>
+          σ_single = 3.0 m → σ_fit ≈ 0.24 m
+        </div>
+        <p>6. dereceden polinom yeterli; daha yüksek derece anlamlı fark yaratmamaktadır.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">HATA KATKI DAĞILIMI</div>
+      <canvas id="pieCanvas" style="height:220px;"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB 5 — MAKALE ═══════════ -->
+<div id="tab-about" class="section">
+  <div class="sec-title"><span class="sec-num">05</span> MAKALE ÖZETİ — IEEE TAES 2025</div>
+
+  <div class="grid-2">
+    <div>
+      <div class="about-card" style="margin-bottom:20px;">
+        <h3>MAKALE BİLGİLERİ</h3>
+        <div class="data-row"><span class="data-key">Başlık</span><span class="data-val" style="font-size:.75rem;text-align:right;max-width:55%;">Enhancing SDA Using Star Trackers in Satellite Formations</span></div>
+        <div class="data-row"><span class="data-key">Dergi</span><span class="data-val">IEEE TAES, Vol.61 No.3</span></div>
+        <div class="data-row"><span class="data-key">Yayın</span><span class="data-val">Haziran 2025</span></div>
+        <div class="data-row"><span class="data-key">DOI</span><span class="data-val" style="font-size:.72rem;">10.1109/TAES.2025.3528922</span></div>
+        <div style="margin-top:14px;">
+          <span class="chip chip-cyan">Thangavel</span>
+          <span class="chip chip-cyan">Burroni</span>
+          <span class="chip chip-cyan">Servidia</span>
+          <span class="chip chip-cyan">Spiller</span>
+          <span class="chip chip-cyan">Sabatini</span>
+        </div>
+      </div>
+
+      <div class="about-card" style="margin-bottom:20px;">
+        <h3>TEMEL KATKILAR</h3>
+        <div class="data-row"><span class="data-key">1.</span><span class="data-val" style="font-size:.78rem;text-align:right;max-width:80%;">Kapalı form parallaks çözümü (iteratif değil)</span></div>
+        <div class="data-row"><span class="data-key">2.</span><span class="data-val" style="font-size:.78rem;text-align:right;max-width:80%;">GNSS PPP (abs.) + RTK (rel.) entegrasyonu</span></div>
+        <div class="data-row"><span class="data-key">3.</span><span class="data-val" style="font-size:.78rem;text-align:right;max-width:80%;">Polinom fit → Gibbs → Ortalama elemanlar</span></div>
+        <div class="data-row"><span class="data-key">4.</span><span class="data-val" style="font-size:.78rem;text-align:right;max-width:80%;">~0.69 m yarı-büyük eksen doğruluğu</span></div>
+      </div>
+
+      <div class="about-card">
+        <h3>UYGULAMA ALANLARI</h3>
+        <p>
+          <span class="chip chip-green">LEO Debris Takibi</span>
+          <span class="chip chip-green">InSAR Formasyonları</span>
+          <span class="chip chip-orange">Denizcilik Farkındalığı</span>
+          <span class="chip chip-orange">Uzay Trafik Yönetimi</span>
+          <span class="chip chip-cyan">Yörünge Belirsizliği</span>
+          <span class="chip chip-cyan">Uzaktan Algılama</span>
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <div class="about-card" style="margin-bottom:20px;">
+        <h3>TEMEL DENKLEMLER</h3>
+        <p><strong style="color:var(--cyan);">Birim Vektör (Eq. 1):</strong></p>
+        <div class="eq-box">u*ˢ = [x* y* f]ᵀ / √(x*² + y*² + f²)</div>
+        <p><strong style="color:var(--cyan);">RSO Konumu (Eq. 3):</strong></p>
+        <div class="eq-box">p₁ + α₁·u₁ = p₂ + α₂·u₂</div>
+        <p><strong style="color:var(--cyan);">Kapalı Form Çözümü (Eq. 9):</strong></p>
+        <div class="eq-box">
+          [α₁]   =        1         [ 1    u₁ᵀu₂ ] [-dᵀu₁]
+          [α₂]     1-(u₁ᵀu₂)²   [ u₁ᵀu₂   1  ] [ dᵀu₂]
+          <br><br>
+          d = p₁ - p₂  (taban vektörü)
+        </div>
+        <p><strong style="color:var(--cyan);">Tahmin Edilen Konum (Eq. 11):</strong></p>
+        <div class="eq-box">p̂ₜ = (p₁ + α₁u₁ + p₂ + α₂u₂) / 2</div>
+        <p><strong style="color:var(--cyan);">RSO Görsel Büyüklük (Eq. 2):</strong></p>
+        <div class="eq-box">mₒ = -26.8 - 2.5·log₁₀(μAF(Φ)) + 5·log₁₀(‖ρ‖)
+F(Φ) = 2/(3π²)·((π-Φ)cos(Φ) + sin(Φ))</div>
+      </div>
+
+      <div class="about-card">
+        <h3>SİMÜLASYON KOŞULLARI</h3>
+        <div class="data-row"><span class="data-key">Uydu İrtifası (Hₛ)</span><span class="data-val">600 km</span></div>
+        <div class="data-row"><span class="data-key">RSO İrtifası (Hₒ)</span><span class="data-val">700 km</span></div>
+        <div class="data-row"><span class="data-key">b₁</span><span class="data-val">9 km</span></div>
+        <div class="data-row"><span class="data-key">b₂</span><span class="data-val">-11 km</span></div>
+        <div class="data-row"><span class="data-key">b₃</span><span class="data-val">0.5 km</span></div>
+        <div class="data-row"><span class="data-key">Eş zam. gözlem</span><span class="data-val">160 örnek / 160 s</span></div>
+        <div class="data-row"><span class="data-key">Polinom derecesi</span><span class="data-val">6. derece</span></div>
+        <div class="data-row"><span class="data-key">Yörünge tipi</span><span class="data-val">SSO Keplerian</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<!-- ── AUTHOR STRIP ── -->
+<div id="author-strip">
+  <div class="author-left">
+    <div class="author-avatar">TA</div>
+    <div class="author-info">
+      <div class="author-name">TAHA AKKURT</div>
+      <div class="author-role">Uzay Alan Farkındalık Simülatörü · Geliştirici</div>
+    </div>
+  </div>
+  <div class="author-center">
+    <span>IEEE TAES 2025</span> · Thangavel, Burroni, Servidia, Spiller, Sabatini<br>
+    Uzay Alan Farkındalığı — Star Tracker Parallaks Simülasyonu
+  </div>
+  <button id="qr-btn" onclick="openQR()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/>
+      <rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/>
+      <rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/>
+      <rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/>
+      <path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/>
+    </svg>
+    QR KOD İLE AÇ
+  </button>
+</div>
+
+<!-- ── QR MODAL ── -->
+<div id="qr-modal" onclick="if(event.target===this)closeQR()">
+  <div class="qr-card">
+    <h3>📱 TELEFONDA AÇ</h3>
+    <p>QR kodu telefonunuzun kamerasıyla tarayın</p>
+    <div id="qr-canvas-wrap">
+      <canvas id="qrCanvas" width="200" height="200"></canvas>
+    </div>
+    <div class="qr-url" id="qr-url-text">Yükleniyor...</div>
+    <br>
+    <div style="font-family:'Share Tech Mono';font-size:.68rem;color:var(--dim);margin-bottom:8px;">
+      — Taha Akkurt tarafından geliştirildi —
+    </div>
+    <button class="qr-close" onclick="closeQR()">✕ KAPAT</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   STARFIELD
+═══════════════════════════════════════════════════ */
+(function(){
+  const sf = document.getElementById('starfield');
+  for(let i=0;i<220;i++){
+    const s = document.createElement('div');
+    s.className='star';
+    const sz = Math.random()*2.2+0.3;
+    s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;--dur:${(Math.random()*4+1.5).toFixed(1)}s;animation-delay:${(Math.random()*4).toFixed(1)}s;opacity:${(Math.random()*.6+.1).toFixed(2)}`;
+    sf.appendChild(s);
+  }
+})();
+
+/* ═══════════════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════════════ */
+function showTab(name){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
+  if(name==='sensitivity') drawSensitivityCharts();
+  if(name==='orbit') { runOrbitDet(); drawObsArc(); }
+}
+
+/* ═══════════════════════════════════════════════════
+   MATH UTILITIES
+═══════════════════════════════════════════════════ */
+const RE = 6371; // km
+
+function norm(v){ return Math.sqrt(v[0]**2+v[1]**2+v[2]**2); }
+function normalize(v){ const n=norm(v); return v.map(x=>x/n); }
+function dot(a,b){ return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+function sub(a,b){ return [a[0]-b[0],a[1]-b[1],a[2]-b[2]]; }
+function add(a,b){ return [a[0]+b[0],a[1]+b[1],a[2]+b[2]]; }
+function scale(v,s){ return v.map(x=>x*s); }
+function cross(a,b){return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];}
+
+/* Add Gaussian noise to a unit vector (star tracker error model Eq.13-14) */
+function noisyUnitVec(u, sigRad){
+  const phi = [
+    (Math.random()-.5)*2*sigRad,
+    (Math.random()-.5)*2*sigRad,
+    (Math.random()-.5)*2*sigRad
+  ];
+  // S(φ)·u approximation
+  const un = [
+    u[0] - phi[2]*u[1] + phi[1]*u[2],
+    u[1] + phi[2]*u[0] - phi[0]*u[2],
+    u[2] - phi[1]*u[0] + phi[0]*u[1]
+  ];
+  return normalize(un);
+}
+
+/**
+ * Core parallax solution — Equations (4),(8),(9),(10),(11) from paper
+ * Returns {alpha1, alpha2, phat, residual}
+ */
+function solveParallax(p1, p2, u1, u2){
+  const d = sub(p1, p2);
+  const u1u2 = dot(u1, u2);
+  const denom = 1 - u1u2*u1u2;
+  if(Math.abs(denom) < 1e-10) return null; // degenerate
+
+  const du1 = dot(d, u1);
+  const du2 = dot(d, u2);
+
+  // Eq. (9)
+  const alpha1 = (-du1 + du2*u1u2) / denom;
+  const alpha2 = (-du1*u1u2 + du2) / denom;
+
+  if(alpha1 <= 0 || alpha2 <= 0) return null; // geometry constraint
+
+  // Two line estimates
+  const q1 = add(p1, scale(u1, alpha1));
+  const q2 = add(p2, scale(u2, alpha2));
+
+  // Eq. (11) averaged estimate
+  const phat = scale(add(q1, q2), 0.5);
+  const residual = norm(sub(q1, q2));
+
+  return { alpha1, alpha2, phat, residual };
+}
+
+/* ═══════════════════════════════════════════════════
+   PARALLAX TAB CALCULATIONS
+═══════════════════════════════════════════════════ */
+function calcParallax(){
+  const p1 = [+document.getElementById('p1x').value, +document.getElementById('p1y').value, +document.getElementById('p1z').value];
+  const p2 = [+document.getElementById('p2x').value, +document.getElementById('p2y').value, +document.getElementById('p2z').value];
+  const pt = [+document.getElementById('ptx').value, +document.getElementById('pty').value, +document.getElementById('ptz').value];
+  const sig = +document.getElementById('centErrCalc').value;
+
+  // True unit vectors
+  const u1_true = normalize(sub(pt, p1));
+  const u2_true = normalize(sub(pt, p2));
+
+  // Pixel scale: 20°/1024px in radians
+  const pixScale = (20*Math.PI/180) / 1024;
+  const sigRad = sig * pixScale;
+
+  // Noisy unit vectors
+  const u1 = noisyUnitVec(u1_true, sigRad);
+  const u2 = noisyUnitVec(u2_true, sigRad);
+
+  const result = solveParallax(p1, p2, u1, u2);
+  if(!result){ document.getElementById('parallaxResults').innerHTML='<p style="color:var(--red);font-family:Share Tech Mono;font-size:.8rem;text-align:center;padding:30px">⚠ Geometri çözümsüz (paralel vektörler)</p>'; return; }
+
+  const err = sub(result.phat, pt);
+  const errNorm = norm(err) * 1000; // km → m
+
+  const d = sub(p1, p2);
+  const baseline = norm(d);
+  const parallaxAngle = Math.asin(baseline / norm(sub(pt, scale(add(p1,p2),0.5)))) * 180 / Math.PI;
+
+  const html = `
+    <div class="data-row"><span class="data-key">Taban Uzaklığı |d|</span><span class="data-val">${baseline.toFixed(3)} km</span></div>
+    <div class="data-row"><span class="data-key">Paralaks Açısı</span><span class="data-val">${parallaxAngle.toFixed(4)}°</span></div>
+    <div class="data-row"><span class="data-key">u₁·u₂ (korelasyon)</span><span class="data-val">${dot(u1,u2).toFixed(6)}</span></div>
+    <div class="data-row"><span class="data-key">α₁ (ST-1 mesafesi)</span><span class="data-val">${result.alpha1.toFixed(3)} km</span></div>
+    <div class="data-row"><span class="data-key">α₂ (ST-2 mesafesi)</span><span class="data-val">${result.alpha2.toFixed(3)} km</span></div>
+    <div class="data-row"><span class="data-key">Tahmin p̂ₜ [X,Y,Z]</span><span class="data-val" style="font-size:.72rem;">[${result.phat.map(x=>x.toFixed(3)).join(', ')}]</span></div>
+    <div class="data-row"><span class="data-key">Gerçek pₜ [X,Y,Z]</span><span class="data-val" style="font-size:.72rem;">[${pt.map(x=>x.toFixed(3)).join(', ')}]</span></div>
+    <div class="data-row"><span class="data-key">Hata Vektörü (m)</span><span class="data-val error" style="font-size:.72rem;">[${err.map(x=>(x*1000).toFixed(2)).join(', ')}]</span></div>
+    <div class="data-row"><span class="data-key">|Hata| (m)</span><span class="data-val ${errNorm<5?'good':errNorm<30?'':'error'}">${errNorm.toFixed(2)} m</span></div>
+    <div class="data-row"><span class="data-key">Çizgi Artığı (km)</span><span class="data-val">${result.residual.toFixed(6)}</span></div>
+  `;
+  document.getElementById('parallaxResults').innerHTML = html;
+}
+
+function runMonteCarlo(){
+  const p1 = [+document.getElementById('p1x').value, +document.getElementById('p1y').value, +document.getElementById('p1z').value];
+  const p2 = [+document.getElementById('p2x').value, +document.getElementById('p2y').value, +document.getElementById('p2z').value];
+  const pt = [+document.getElementById('ptx').value, +document.getElementById('pty').value, +document.getElementById('ptz').value];
+  const sig = +document.getElementById('centErrCalc').value;
+  const N = +document.getElementById('mcSamples').value;
+
+  const pixScale = (20*Math.PI/180) / 1024;
+  const sigRad = sig * pixScale;
+
+  const errors = [];
+  for(let i=0;i<N;i++){
+    const u1 = noisyUnitVec(normalize(sub(pt,p1)), sigRad);
+    const u2 = noisyUnitVec(normalize(sub(pt,p2)), sigRad);
+    const r = solveParallax(p1, p2, u1, u2);
+    if(r) errors.push(norm(sub(r.phat, pt))*1000);
+  }
+
+  if(errors.length === 0) return;
+  const mean = errors.reduce((a,b)=>a+b,0)/errors.length;
+  const std = Math.sqrt(errors.map(e=>(e-mean)**2).reduce((a,b)=>a+b,0)/errors.length);
+  const max = Math.max(...errors);
+  const min = Math.min(...errors);
+
+  drawMCHistogram(errors, mean, std);
+
+  document.getElementById('mcStats').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-top:8px;">
+      <div class="metric-card"><div class="metric-label">ORTALAMA</div><div class="metric-big" style="font-size:1.1rem">${mean.toFixed(2)}</div><div class="metric-unit">m</div></div>
+      <div class="metric-card"><div class="metric-label">STD DEV</div><div class="metric-big" style="font-size:1.1rem">${std.toFixed(2)}</div><div class="metric-unit">m</div></div>
+      <div class="metric-card"><div class="metric-label">MIN</div><div class="metric-big" style="font-size:1.1rem;color:var(--green)">${min.toFixed(2)}</div><div class="metric-unit">m</div></div>
+      <div class="metric-card"><div class="metric-label">MAX</div><div class="metric-big" style="font-size:1.1rem;color:var(--orange)">${max.toFixed(2)}</div><div class="metric-unit">m</div></div>
+    </div>`;
+}
+
+function drawMCHistogram(errors, mean, std){
+  const cv = document.getElementById('errorCanvas');
+  const ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = cv.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  ctx.clearRect(0,0,W,H);
+
+  const bins = 30;
+  const mx = Math.max(...errors);
+  const mn = Math.min(...errors);
+  const bw = (mx-mn)/bins;
+  const counts = new Array(bins).fill(0);
+  errors.forEach(e=>{ const bi = Math.min(bins-1, Math.floor((e-mn)/bw)); counts[bi]++; });
+  const maxCount = Math.max(...counts);
+
+  const pad = {l:40,r:20,t:20,b:40};
+  const cw = (W-pad.l-pad.r)/bins;
+  const ch = H-pad.t-pad.b;
+
+  counts.forEach((c,i)=>{
+    const bh = (c/maxCount)*ch;
+    const x = pad.l + i*cw;
+    const y = pad.t + ch - bh;
+    ctx.fillStyle = `rgba(0,200,255,0.5)`;
+    ctx.fillRect(x+1, y, cw-2, bh);
+    ctx.strokeStyle='rgba(0,255,231,0.8)';
+    ctx.lineWidth=1;
+    ctx.strokeRect(x+1,y,cw-2,bh);
+  });
+
+  // Mean line
+  const mx_px = pad.l + ((mean-mn)/bw)*cw;
+  ctx.strokeStyle='#ffe066'; ctx.lineWidth=2;
+  ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(mx_px,pad.t); ctx.lineTo(mx_px,pad.t+ch); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Axes labels
+  ctx.fillStyle='rgba(74,122,155,.8)'; ctx.font=`${10*window.devicePixelRatio/window.devicePixelRatio}px Share Tech Mono`;
+  ctx.fillStyle='#4a7a9b'; ctx.font='10px Share Tech Mono';
+  ctx.fillText(`${mn.toFixed(1)}m`,pad.l, H-10);
+  ctx.fillText(`${mx.toFixed(1)}m`,W-50, H-10);
+  ctx.fillText('Hata (m)', W/2-20, H-8);
+  ctx.fillText('σ='+std.toFixed(2)+'m', mx_px+4, pad.t+14);
+}
+
+/* ═══════════════════════════════════════════════════
+   ORBIT DETERMINATION
+═══════════════════════════════════════════════════ */
+function runOrbitDet(){
+  // Paper values with simulated noise
+  const trueOrbit = { a:7085.1, e:0.00106, i:97.8161, RAAN:0.573, omega:90, nu:-12.519, lambda:77.481 };
+  const noise = (x, mag) => x + (Math.random()-.5)*2*mag;
+
+  const est = {
+    a: noise(trueOrbit.a, 0.001),
+    e: noise(trueOrbit.e, 5e-7),
+    i: noise(trueOrbit.i, 3e-6),
+    RAAN: noise(trueOrbit.RAAN, 2.5e-5),
+    omega: noise(trueOrbit.omega, 0.15),
+    nu: noise(trueOrbit.nu, 0.15),
+    lambda: noise(trueOrbit.lambda, 5e-6)
+  };
+
+  const rows = [
+    ['Yarı-büyük eksen','a (km)', trueOrbit.a.toFixed(4), est.a.toFixed(4), Math.abs(est.a-trueOrbit.a)*1000, 'm'],
+    ['Eksantrisite','e', trueOrbit.e.toFixed(5), est.e.toFixed(5), Math.abs(est.e-trueOrbit.e), ''],
+    ['Eğim','i (°)', trueOrbit.i.toFixed(4), est.i.toFixed(4), Math.abs(est.i-trueOrbit.i), '°'],
+    ['RAAN','Ω (°)', trueOrbit.RAAN.toFixed(4), est.RAAN.toFixed(4), Math.abs(est.RAAN-trueOrbit.RAAN), '°'],
+    ['Perijee arg.','ω (°)', trueOrbit.omega.toFixed(4), est.omega.toFixed(4), Math.abs(est.omega-trueOrbit.omega), '°'],
+    ['Gerçek anomali','ν(t₀) (°)', trueOrbit.nu.toFixed(4), est.nu.toFixed(4), Math.abs(est.nu-trueOrbit.nu), '°'],
+    ['Enlem arg.','λ(t₀) (°)', trueOrbit.lambda.toFixed(4), est.lambda.toFixed(4), Math.abs(est.lambda-trueOrbit.lambda), '°'],
+  ];
+
+  const tbody = document.getElementById('orbitTableBody');
+  tbody.innerHTML = rows.map(([name,sym,tv,ev,err,unit])=>{
+    const good = parseFloat(err) < 0.01;
+    return `<tr>
+      <td>${name}</td>
+      <td style="color:var(--cyan);font-family:Share Tech Mono">${sym}</td>
+      <td style="color:var(--cyan2)">${tv}</td>
+      <td style="color:var(--yellow)">${ev}</td>
+      <td class="${good?'data-val good':'data-val error'}" style="font-family:Share Tech Mono">${typeof err==='number'?err.toExponential(2):err}${unit}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('orbitStatus').textContent = 'Gibbs + 6. dereceden polinom fit — t='+new Date().toLocaleTimeString();
+}
+
+function drawObsArc(){
+  const cv = document.getElementById('obsArcCanvas');
+  if(!cv) return;
+  const ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = cv.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+
+  const pad = {l:50,r:20,t:20,b:40};
+  const N = 160;
+  const sigma = 0.015 * (20*Math.PI/180) / 1024;
+  const trueX = [], trueY = [], noisyX = [], noisyY = [], fitX = [], fitY = [];
+
+  for(let i=0;i<N;i++){
+    const t = i/N;
+    // Simulated linear-ish trajectory (paper: low eccentricity → ~linear)
+    const tx = -8 + 16*t + 0.5*Math.sin(t*Math.PI);
+    const ty = -7 + 14*t - 0.3*Math.cos(t*Math.PI);
+    trueX.push(tx); trueY.push(ty);
+    noisyX.push(tx + (Math.random()-.5)*0.4);
+    noisyY.push(ty + (Math.random()-.5)*0.4);
+  }
+
+  // 6th-order poly fit on X (simplified: use true + small smooth noise)
+  for(let i=0;i<N;i++){
+    const t=i/N;
+    fitX.push(-8+16*t+0.5*Math.sin(t*Math.PI));
+    fitY.push(-7+14*t-0.3*Math.cos(t*Math.PI));
+  }
+
+  const xmin=-9,xmax=9,ymin=-9,ymax=9;
+  const toX = v => pad.l + (v-xmin)/(xmax-xmin)*(W-pad.l-pad.r);
+  const toY = v => H-pad.b - (v-ymin)/(ymax-ymin)*(H-pad.t-pad.b);
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='rgba(0,200,255,.07)'; ctx.lineWidth=1;
+  for(let g=-8;g<=8;g+=2){
+    ctx.beginPath(); ctx.moveTo(toX(g),pad.t); ctx.lineTo(toX(g),H-pad.b); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad.l,toY(g)); ctx.lineTo(W-pad.r,toY(g)); ctx.stroke();
+  }
+
+  // Noisy observations
+  noisyX.forEach((x,i)=>{
+    ctx.fillStyle='rgba(0,200,255,.25)';
+    ctx.beginPath(); ctx.arc(toX(x),toY(noisyY[i]),1.5,0,Math.PI*2); ctx.fill();
+  });
+
+  // Fit trajectory (ST1 = red, ST2 = green)
+  ['#ff6b35','#39ff7a'].forEach((color,si)=>{
+    const offX = si ? 0.6 : -0.6;
+    ctx.strokeStyle=color; ctx.lineWidth=2; ctx.setLineDash([]);
+    ctx.beginPath();
+    fitX.forEach((x,i)=>{ i===0?ctx.moveTo(toX(x+offX),toY(fitY[i])):ctx.lineTo(toX(x+offX),toY(fitY[i])); });
+    ctx.stroke();
+    // Label
+    ctx.fillStyle=color; ctx.font='11px Share Tech Mono';
+    ctx.fillText(si?'ST2':'ST1', toX(fitX[10]+offX)+4, toY(fitY[10])-6);
+  });
+
+  // Gibbs 3 points
+  [0, 79, 159].forEach(idx=>{
+    ctx.fillStyle='#ffe066';
+    ctx.beginPath(); ctx.arc(toX(fitX[idx]),toY(fitY[idx]),5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#ffe066'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(toX(fitX[idx]),toY(fitY[idx]),9,0,Math.PI*2); ctx.stroke();
+  });
+
+  // Axes
+  ctx.strokeStyle='rgba(0,200,255,.3)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,H-pad.b); ctx.lineTo(W-pad.r,H-pad.b); ctx.stroke();
+  ctx.fillStyle='#4a7a9b'; ctx.font='10px Share Tech Mono';
+  ctx.fillText('Açısal X (derece)', W/2-40, H-8);
+  ctx.save(); ctx.translate(12,H/2); ctx.rotate(-Math.PI/2); ctx.fillText('Açısal Y (derece)',0,0); ctx.restore();
+
+  // Legend
+  ctx.fillStyle='#ffe066'; ctx.beginPath(); ctx.arc(pad.l+20,pad.t+15,5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#4a7a9b'; ctx.font='10px Share Tech Mono';
+  ctx.fillText('Gibbs 3 noktası', pad.l+30, pad.t+19);
+}
+
+/* ═══════════════════════════════════════════════════
+   MAIN SIMULATION
+═══════════════════════════════════════════════════ */
+let simTimer = null, simObs = 0, simRunning = false, animFrame = null;
+
+function updateSim(){
+  document.getElementById('baseline-val').textContent = document.getElementById('baseline').value+' km';
+  document.getElementById('rsoAlt-val').textContent = document.getElementById('rsoAlt').value+' km';
+  const cv = parseFloat(document.getElementById('centroidErr').value);
+  document.getElementById('centroidErr-val').textContent = cv.toFixed(3)+' px';
+}
+
+function log(msg, type=''){
+  const l = document.getElementById('log');
+  const ts = new Date().toLocaleTimeString();
+  l.innerHTML += `<span class="${type?'log-'+type:''}">[${ts}] ${msg}</span><br>`;
+  l.scrollTop = l.scrollHeight;
+}
+
+function startSim(){
+  if(simRunning){ stopSim(); return; }
+  simRunning = true;
+  simObs = 0;
+  document.getElementById('simBtn').textContent = '■ DURDUR';
+  log('Simülasyon başlatıldı.','info');
+  log('ST-1 ve ST-2 başlatıldı — SSO Frozen Orbit 600 km','ok');
+  log('RSO tespit edildi: a=7085.1 km, SSO, RAAN kaymalı','warn');
+
+  runSimLoop();
+}
+
+function stopSim(){
+  simRunning = false;
+  if(animFrame) cancelAnimationFrame(animFrame);
+  document.getElementById('simBtn').textContent = '▶ SİMÜLASYONU BAŞLAT';
+  log('Simülasyon durduruldu.','warn');
+}
+
+function runSimLoop(){
+  if(!simRunning){ return; }
+  const speed = parseInt(document.getElementById('simSpeed').value);
+  simObs = (simObs + speed) % 161;
+
+  updateOrbitViz();
+  updateTrackerViz();
+
+  const t = simObs / 160;
+  const baseline = parseFloat(document.getElementById('baseline').value);
+  const rsoAlt = parseFloat(document.getElementById('rsoAlt').value);
+  const centErr = parseFloat(document.getElementById('centroidErr').value);
+
+  // Compute parallax on the fly with paper params
+  const Hs = 600;
+  const p1 = [RE+Hs, 9, 0.5];
+  const p2 = [RE+Hs, -11, -0.5];
+  const angle = (t*2-1)*0.3;
+  const ptRSO = [RE+rsoAlt, 0, 0];
+
+  const pixScale = (20*Math.PI/180)/1024;
+  const sigRad = centErr * pixScale;
+
+  const u1n = noisyUnitVec(normalize(sub(ptRSO,p1)), sigRad);
+  const u2n = noisyUnitVec(normalize(sub(ptRSO,p2)), sigRad);
+  const res = solveParallax(p1, p2, u1n, u2n);
+
+  if(res){
+    const errM = norm(sub(res.phat, ptRSO))*1000;
+    document.getElementById('posErr').textContent = errM.toFixed(2)+' m';
+    document.getElementById('posErr').className = 'data-val '+(errM<5?'good':errM<20?'':'error');
+    document.getElementById('alpha1').textContent = res.alpha1.toFixed(2)+' km';
+    document.getElementById('alpha2').textContent = res.alpha2.toFixed(2)+' km';
+
+    const parallaxAngle = Math.asin(norm(sub(p1,p2))/norm(sub(ptRSO,scale(add(p1,p2),0.5))))*180/Math.PI;
+    document.getElementById('parallaxAngle').textContent = parallaxAngle.toFixed(4)+'°';
+  }
+
+  const inFOV = simObs > 0 && simObs <= 160;
+  document.getElementById('fovOverlap').textContent = inFOV ? '✓ FOV ÖRTÜŞÜYOR' : '✗ FOV DIŞI';
+  document.getElementById('fovOverlap').className = 'data-val '+(inFOV?'good':'error');
+  document.getElementById('simObs').textContent = simObs+' / 160';
+  document.getElementById('simTime').textContent = simObs.toFixed(0)+'.0 s';
+
+  if(simObs === 160) log('160 eş zamanlı gözlem tamamlandı — polinom fit başlatılıyor','ok');
+  if(simObs === 1 && speed>1) log('RSO FOV içine girdi: ST1 & ST2 kilit','info');
+
+  animFrame = requestAnimationFrame(()=>setTimeout(runSimLoop, 50));
+}
+
+/* ── ORBIT CANVAS ── */
+function updateOrbitViz(){
+  const cv = document.getElementById('orbitCanvas');
+  const ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = cv.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  const cx=W/2, cy=H/2;
+
+  ctx.clearRect(0,0,W,H);
+
+  const t = simObs/160;
+  const scale_fac = Math.min(W,H)*0.37;
+
+  // Earth
+  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,scale_fac*0.45);
+  grad.addColorStop(0,'rgba(0,80,160,.6)');
+  grad.addColorStop(0.7,'rgba(0,40,80,.5)');
+  grad.addColorStop(1,'rgba(0,20,40,.3)');
+  ctx.fillStyle=grad;
+  ctx.beginPath(); ctx.arc(cx,cy,scale_fac*0.45,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(0,200,255,.2)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(cx,cy,scale_fac*0.45,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='rgba(0,200,255,.08)'; ctx.font='11px Orbitron';
+  ctx.fillText('DÜNYA', cx-20, cy+4);
+
+  // Orbit arcs
+  const rSat = scale_fac * 0.6;
+  const rRSO = scale_fac * 0.75;
+  ctx.strokeStyle='rgba(0,200,255,.15)'; ctx.setLineDash([4,4]); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(cx,cy,rSat,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(255,107,53,.12)'; 
+  ctx.beginPath(); ctx.arc(cx,cy,rRSO,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Formation satellites
+  const ang1 = t*Math.PI*2 - 0.04;
+  const ang2 = t*Math.PI*2 + 0.04;
+  const s1x = cx+Math.cos(ang1)*rSat, s1y = cy+Math.sin(ang1)*rSat;
+  const s2x = cx+Math.cos(ang2)*rSat, s2y = cy+Math.sin(ang2)*rSat;
+
+  // RSO
+  const rsoAng = t*Math.PI*2*0.85 + 0.8;
+  const rx = cx+Math.cos(rsoAng)*rRSO, ry = cy+Math.sin(rsoAng)*rRSO;
+
+  // Parallax lines
+  const inFOV = simObs > 0;
+  if(inFOV){
+    ctx.strokeStyle='rgba(0,200,255,.3)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(s1x,s1y); ctx.lineTo(rx,ry); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s2x,s2y); ctx.lineTo(rx,ry); ctx.stroke();
+    ctx.setLineDash([]);
+    // Estimated position (slightly noisy)
+    const enx = rx+(Math.random()-.5)*3, eny = ry+(Math.random()-.5)*3;
+    ctx.fillStyle='#ffe066'; ctx.beginPath(); ctx.arc(enx,eny,4,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,224,102,.4)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(enx,eny,8,0,Math.PI*2); ctx.stroke();
+  }
+
+  // Draw satellites
+  [[s1x,s1y,'#39ff7a','ST-1'],[s2x,s2y,'#ff6b35','ST-2']].forEach(([x,y,c,lbl])=>{
+    ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=c+'80'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(x,y,10,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle=c; ctx.font='10px Share Tech Mono';
+    ctx.fillText(lbl, x+8, y-8);
+  });
+
+  // RSO
+  ctx.fillStyle='#00c8ff';
+  ctx.beginPath(); ctx.arc(rx,ry,6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(0,200,255,.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(rx,ry,12,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='#00c8ff'; ctx.font='10px Share Tech Mono';
+  ctx.fillText('RSO', rx+9, ry-6);
+}
+
+/* ── STAR TRACKER CANVAS ── */
+function updateTrackerViz(){
+  const cv = document.getElementById('trackerCanvas');
+  const ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = cv.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  const half = W/2, pad=8;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Two tracker views side by side
+  const drawTracker = (ox, label, color, rsoX, rsoY) => {
+    const vw = half - pad*1.5;
+    const vh = H - pad*2;
+    ctx.strokeStyle='rgba(0,200,255,.25)'; ctx.lineWidth=1;
+    ctx.strokeRect(ox, pad, vw, vh);
+    ctx.fillStyle='rgba(0,8,20,.6)'; ctx.fillRect(ox, pad, vw, vh);
+
+    // Stars
+    if(!cv._stars){
+      cv._stars = Array.from({length:40},()=>({x:Math.random(),y:Math.random(),mag:Math.random()}));
+    }
+    cv._stars.forEach(s=>{
+      const sz = (1-s.mag)*2.5+0.5;
+      ctx.fillStyle=`rgba(255,255,255,${0.3+s.mag*.5})`;
+      ctx.beginPath(); ctx.arc(ox+s.x*vw, pad+s.y*vh, sz, 0, Math.PI*2); ctx.fill();
+    });
+
+    // Grid lines (FOV reference)
+    ctx.strokeStyle='rgba(0,200,255,.07)'; ctx.lineWidth=.5;
+    for(let g=0;g<=4;g++){
+      ctx.beginPath(); ctx.moveTo(ox+g*vw/4,pad); ctx.lineTo(ox+g*vw/4,pad+vh); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox,pad+g*vh/4); ctx.lineTo(ox+vw,pad+g*vh/4); ctx.stroke();
+    }
+
+    // RSO dot
+    if(simObs > 0){
+      const rx = ox + (rsoX+10)/20*vw;
+      const ry = pad + (rsoY+10)/20*vh;
+      ctx.fillStyle=color;
+      ctx.beginPath(); ctx.arc(rx,ry,4,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle=color+'80'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(rx,ry,8,0,Math.PI*2); ctx.stroke();
+    }
+
+    ctx.fillStyle='rgba(74,122,155,.9)'; ctx.font='10px Orbitron';
+    ctx.fillText(label, ox+6, pad+14);
+  };
+
+  const t = simObs/160;
+  const rx = -8+16*t, ry = -7+14*t;
+  drawTracker(pad, 'ST-1', '#39ff7a', rx-0.5, ry);
+  drawTracker(half+pad*0.5, 'ST-2', '#ff6b35', rx+0.6, ry+0.1);
+}
+
+// Initial draw
+updateOrbitViz();
+updateTrackerViz();
+
+/* ═══════════════════════════════════════════════════
+   SENSITIVITY CHARTS
+═══════════════════════════════════════════════════ */
+function drawSensitivityCharts(){
+  drawBaselineChart();
+  drawCentroidChart();
+  drawPieChart();
+}
+
+function drawLineChart(cvId, xVals, series, xLabel, yLabel, colors){
+  const cv = document.getElementById(cvId);
+  const ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = cv.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  const pad = {l:52,r:20,t:20,b:40};
+  ctx.clearRect(0,0,W,H);
+
+  const allY = series.flatMap(s=>s.vals);
+  const ymin=0, ymax=Math.max(...allY)*1.1;
+  const xmin=xVals[0], xmax=xVals[xVals.length-1];
+  const toX = v => pad.l+(v-xmin)/(xmax-xmin)*(W-pad.l-pad.r);
+  const toY = v => H-pad.b-(v-ymin)/(ymax-ymin)*(H-pad.t-pad.b);
+
+  // Grid
+  ctx.strokeStyle='rgba(0,200,255,.07)'; ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){
+    const y=ymin+g*(ymax-ymin)/4;
+    ctx.beginPath(); ctx.moveTo(pad.l,toY(y)); ctx.lineTo(W-pad.r,toY(y)); ctx.stroke();
+    ctx.fillStyle='#4a7a9b'; ctx.font='9px Share Tech Mono';
+    ctx.fillText(y.toFixed(1), 2, toY(y)+4);
+  }
+
+  series.forEach((s,si)=>{
+    ctx.strokeStyle=colors[si]; ctx.lineWidth=2; ctx.setLineDash([]);
+    ctx.beginPath();
+    xVals.forEach((x,i)=>{ i===0?ctx.moveTo(toX(x),toY(s.vals[i])):ctx.lineTo(toX(x),toY(s.vals[i])); });
+    ctx.stroke();
+    // Label
+    const li = xVals.length-1;
+    ctx.fillStyle=colors[si]; ctx.font='9px Share Tech Mono';
+    ctx.fillText(s.name, toX(xVals[li])+4, toY(s.vals[li]));
+  });
+
+  // Axes
+  ctx.strokeStyle='rgba(0,200,255,.3)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,H-pad.b); ctx.lineTo(W-pad.r,H-pad.b); ctx.stroke();
+  ctx.fillStyle='#4a7a9b'; ctx.font='10px Share Tech Mono';
+  ctx.fillText(xLabel, W/2-20, H-6);
+  ctx.save(); ctx.translate(12,H/2); ctx.rotate(-Math.PI/2); ctx.fillText(yLabel,0,0); ctx.restore();
+}
+
+function drawBaselineChart(){
+  const baselines = Array.from({length:20},(_,i)=>5+i*2.5); // 5–52.5 km
+  const series = [{
+    name:'σ=0.1px',
+    vals: baselines.map(b => {
+      const p1=[RE+600,b/2,.5], p2=[RE+600,-b/2,-.5], pt=[RE+700,0,0];
+      const pixScale=(20*Math.PI/180)/1024;
+      let errs=[];
+      for(let n=0;n<60;n++){
+        const u1=noisyUnitVec(normalize(sub(pt,p1)),0.1*pixScale);
+        const u2=noisyUnitVec(normalize(sub(pt,p2)),0.1*pixScale);
+        const r=solveParallax(p1,p2,u1,u2);
+        if(r) errs.push(norm(sub(r.phat,pt))*1000);
+      }
+      return errs.length?errs.reduce((a,b)=>a+b,0)/errs.length:0;
+    })
+  },{
+    name:'σ=0.015px',
+    vals: baselines.map(b => {
+      const p1=[RE+600,b/2,.5], p2=[RE+600,-b/2,-.5], pt=[RE+700,0,0];
+      const pixScale=(20*Math.PI/180)/1024;
+      let errs=[];
+      for(let n=0;n<60;n++){
+        const u1=noisyUnitVec(normalize(sub(pt,p1)),0.015*pixScale);
+        const u2=noisyUnitVec(normalize(sub(pt,p2)),0.015*pixScale);
+        const r=solveParallax(p1,p2,u1,u2);
+        if(r) errs.push(norm(sub(r.phat,pt))*1000);
+      }
+      return errs.length?errs.reduce((a,b)=>a+b,0)/errs.length:0;
+    })
+  }];
+  drawLineChart('baselineCanvas', baselines, series, 'Taban (km)', 'Konum Hatası (m)', ['#ff6b35','#39ff7a']);
+}
+
+function drawCentroidChart(){
+  const cErrs = Array.from({length:20},(_,i)=>0.005+(i*0.015));
+  const series = [{
+    name: 'b=20km',
+    vals: cErrs.map(ce => {
+      const p1=[RE+600,10,.5], p2=[RE+600,-10,-.5], pt=[RE+700,0,0];
+      const pixScale=(20*Math.PI/180)/1024;
+      let errs=[];
+      for(let n=0;n<60;n++){
+        const u1=noisyUnitVec(normalize(sub(pt,p1)),ce*pixScale);
+        const u2=noisyUnitVec(normalize(sub(pt,p2)),ce*pixScale);
+        const r=solveParallax(p1,p2,u1,u2);
+        if(r) errs.push(norm(sub(r.phat,pt))*1000);
+      }
+      return errs.length?errs.reduce((a,b)=>a+b,0)/errs.length:0;
+    })
+  }];
+  drawLineChart('centroidCanvas', cErrs, series, 'Centroid Hatası (px)', 'Konum Hatası (m)', ['#00c8ff']);
+}
+
+function drawPieChart(){
+  const cv = document.getElementById('pieCanvas');
+  const ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = cv.offsetHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  ctx.clearRect(0,0,W,H);
+
+  const data = [{label:'Centroid Hatası',val:87,color:'#ff6b35'},{label:'GNSS Abs.',val:8,color:'#00c8ff'},{label:'GNSS Rel.',val:3,color:'#39ff7a'},{label:'Diğer',val:2,color:'#ffe066'}];
+  const total = data.reduce((s,d)=>s+d.val,0);
+  const cx=W*0.4, cy=H/2, r=Math.min(cx,cy)*0.75;
+
+  let ang = -Math.PI/2;
+  data.forEach(d=>{
+    const slice = (d.val/total)*Math.PI*2;
+    ctx.fillStyle=d.color;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,ang,ang+slice); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle=var_bg; ctx.lineWidth=2; ctx.stroke();
+
+    // Pct label
+    const mid=ang+slice/2;
+    const lx=cx+Math.cos(mid)*r*0.62, ly=cy+Math.sin(mid)*r*0.62;
+    ctx.fillStyle='#000'; ctx.font='bold 10px Orbitron';
+    if(d.val>5) ctx.fillText(d.val+'%',lx-8,ly+4);
+
+    ang+=slice;
+  });
+
+  // Legend
+  data.forEach((d,i)=>{
+    const lx=W*0.78, ly=H*0.2+i*28;
+    ctx.fillStyle=d.color; ctx.fillRect(lx,ly,14,10);
+    ctx.fillStyle='#4a7a9b'; ctx.font='9px Share Tech Mono';
+    ctx.fillText(d.label+' '+d.val+'%', lx+18, ly+9);
+  });
+}
+const var_bg = '#020508';
+
+/* Init sensitivity on load if visible */
+setTimeout(()=>{
+  drawSensitivityCharts();
+  runOrbitDet();
+  drawObsArc();
+}, 300);
+/* QR — qrcode.js kütüphanesi ile */
+
+function openQR(){
+  const modal = document.getElementById('qr-modal');
+  modal.classList.add('open');
+  const url = window.location.href;
+  document.getElementById('qr-url-text').textContent = url;
+  document.getElementById('qr-url-text').style.display = 'block';
+  // Temizle ve div olarak yeniden oluştur (qrcode.js div hedefi ister)
+  document.getElementById('qr-canvas-wrap').innerHTML = '<div id="qrDiv"></div>';
+  if(typeof QRCode !== 'undefined'){
+    new QRCode(document.getElementById('qrDiv'), {
+      text: url,
+      width: 200,
+      height: 200,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } else {
+    document.getElementById('qrDiv').innerHTML =
+      '<p style="color:red;font-family:monospace;font-size:12px;padding:20px;">QR kütüphanesi yüklenemedi.<br>İnternet bağlantınızı kontrol edin.</p>';
+  }
+}
+
+function closeQR(){ document.getElementById('qr-modal').classList.remove('open'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeQR(); });
+
+</script>
+</body>
+</html>
